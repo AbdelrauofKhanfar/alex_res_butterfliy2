@@ -1,0 +1,59 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+import zipfile
+zip_path = '/content/drive/MyDrive/colabprog2/archive.zip'
+
+with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    zip_ref.extractall(extract_path)
+
+import os
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+
+train_dir = os.path.join(extract_path, 'train')
+val_dir = os.path.join(extract_path, 'valid')
+test_dir = os.path.join(extract_path, 'test')
+
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406],
+                         [0.229, 0.224, 0.225])
+])
+
+train_dataset = datasets.ImageFolder(train_dir, transform=transform)
+val_dataset = datasets.ImageFolder(val_dir, transform=transform)
+test_dataset = datasets.ImageFolder(test_dir, transform=transform)
+
+train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+
+num_classes = len(train_dataset.classes)
+print(f"Number of classes: {num_classes}")
+
+import torch
+from torchvision import models
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+model = models.alexnet(pretrained=True)
+model.classifier[6] = torch.nn.Linear(4096, num_classes)
+model = model.to(device)
+
+model.eval()
+correct = 0
+total = 0
+
+with torch.no_grad():
+    for images, labels in test_loader:
+        images = images.to(device)
+        labels = labels.to(device)
+
+        outputs = model(images)
+        _, preds = torch.max(outputs, 1)
+        correct += (preds == labels).sum().item()
+        total += labels.size(0)
+
+print(f"Test Accuracy (AlexNet pretrained): {correct / total:.4f}")
